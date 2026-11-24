@@ -1351,5 +1351,76 @@ initWindRibbons();
 updateVolumeAndSlices(true);
 flyRegional();
 </script>
+<style>
+  #toggle-ui-btn {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 9999;
+    background: rgba(15, 23, 42, 0.88);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.5);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  body.ui-hidden .panel,
+  body.ui-hidden .left-panel,
+  body.ui-hidden .right-panel,
+  body.ui-hidden .bottom-panel,
+  body.ui-hidden [id*="panel"],
+  body.ui-hidden [class*="panel"],
+  body.ui-hidden [class*="hud"],
+  body.ui-hidden [class*="control"] {
+    display: none !important;
+  }
+
+  @media (max-width: 768px) {
+    body:not(.ui-hidden) {
+      overflow-y: auto !important;
+    }
+    body:not(.ui-hidden)::before {
+      content: "";
+      display: block;
+      height: 45vh;
+      pointer-events: none;
+    }
+    body:not(.ui-hidden) .panel,
+    body:not(.ui-hidden) .left-panel,
+    body:not(.ui-hidden) .right-panel,
+    body:not(.ui-hidden) .bottom-panel,
+    body:not(.ui-hidden) [id*="panel"],
+    body:not(.ui-hidden) [class*="panel"],
+    body:not(.ui-hidden) [class*="hud"],
+    body:not(.ui-hidden) [class*="control"] {
+      position: relative !important;
+      inset: auto !important;
+      transform: none !important;
+      width: 92vw !important;
+      max-width: 92vw !important;
+      margin: 8px auto !important;
+      z-index: 20 !important;
+    }
+  }
+</style>
+
+<button id="toggle-ui-btn" onclick="toggleTwinUI()">✕ Hide UI</button>
+
+<script>
+  function toggleTwinUI() {
+    const hidden = document.body.classList.toggle("ui-hidden");
+    document.getElementById("toggle-ui-btn").textContent = hidden ? "☰ Controls" : "✕ Hide UI";
+  }
+
+  if (window.innerWidth <= 768) {
+    document.body.classList.add("ui-hidden");
+    document.getElementById("toggle-ui-btn").textContent = "☰ Controls";
+  }
+</script>
 </body>
 </html>
