@@ -1282,6 +1282,71 @@ document.getElementById("file-input").addEventListener("change", (e) => {
   reader.readAsText(file);
 });
 
+// Auto-load lewotobi_dt_bundle.json dari folder yang sama di GitHub Pages
+fetch("./lewotobi_dt_bundle.json")
+  .then(res => {
+    if (!res.ok) throw new Error("Bundle belum ditemukan");
+    return res.json();
+  })
+  .then(parsed => {
+    const northFirst = parsed.lats && parsed.lats.length > 1 && parsed.lats[0] > parsed.lats[1];
+    const flipRows = arr => arr.slice().reverse();
+
+    if (parsed.lons && parsed.lats) {
+      DATA.lons = parsed.lons;
+      DATA.lats = northFirst ? parsed.lats.slice().reverse() : parsed.lats;
+    }
+    if (parsed.dates) DATA.dates = parsed.dates;
+    if (parsed.daily) {
+      if (parsed.daily.so2) DATA.so2 = northFirst ? parsed.daily.so2.map(flipRows) : parsed.daily.so2;
+      if (parsed.daily.so4) DATA.so4 = northFirst ? parsed.daily.so4.map(flipRows) : parsed.daily.so4;
+    }
+    if (parsed.stage2) {
+      for (const k of ["lag", "r", "sig"]) {
+        if (parsed.stage2[k]) {
+          DATA.stage2[k] = {};
+          for (const v in parsed.stage2[k]) {
+            DATA.stage2[k][v] = northFirst ? flipRows(parsed.stage2[k][v]) : parsed.stage2[k][v];
+          }
+        }
+      }
+    }
+    if (parsed.wind) {
+      DATA.wind = {
+        ...parsed.wind,
+        lats: northFirst ? parsed.wind.lats.slice().reverse() : parsed.wind.lats,
+        u: northFirst ? parsed.wind.u.map(levs => levs.map(flipRows)) : parsed.wind.u,
+        v: northFirst ? parsed.wind.v.map(levs => levs.map(flipRows)) : parsed.wind.v
+      };
+    }
+    if (parsed.vertical) {
+      DATA.vertical = {
+        ...parsed.vertical,
+        so2: northFirst ? parsed.vertical.so2.map(levs => levs.map(flipRows)) : parsed.vertical.so2
+      };
+    }
+    if (parsed.plume) DATA.plume = parsed.plume;
+    if (Array.isArray(parsed.trajectories_300hpa)) DATA.traj = parsed.trajectories_300hpa;
+
+    const s = document.getElementById("time-slider");
+    if (s && DATA.dates) {
+      s.max = Math.max(0, DATA.dates.length - 1);
+      s.value = Math.min(34, parseFloat(s.max));
+    }
+
+    const badge = document.getElementById("data-badge");
+    if (badge) {
+      badge.className = "badge badge-live";
+      badge.textContent = "PROCESSED DATASET LOADED";
+    }
+
+    refreshAutoScales();
+    rebuildTrajectories();
+    initWindRibbons();
+    updateVolumeAndSlices(true);
+  })
+  .catch(() => {});  
+
 initWindRibbons();
 updateVolumeAndSlices(true);
 flyRegional();
