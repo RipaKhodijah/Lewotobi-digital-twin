@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mount Lewotobi Laki-Laki 3D Atmospheric Digital Twin (CesiumJS)</title>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+    html, body, #cesiumContainer { width: 100%; height: 100%; overflow: hidden; background: #03060c; }
+    .cesium-widget-credits { display: none !important; }
+
+    .panel {
+      position: absolute;
+      background: rgba(10, 16, 28, 0.88);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #e2e8f0;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
+      z-index: 20;
+    }
+
+    /* TOP BAR */
+    #top-bar {
+      top: 12px; left: 12px; right: 12px;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 18px;
+    }
+    .title-group h1 { font-size: 15px; font-weight: 700; color: #38bdf8; letter-spacing: 0.3px; }
+    .title-group .sub { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+    .mode-pills {
+      display: flex; gap: 6px;
+      background: rgba(15, 23, 42, 0.9);
+      padding: 4px; border-radius: 9px;
+      border: 1px solid #1e293b;
+    }
+    .pill-btn {
+      padding: 6px 12px; border-radius: 7px; font-size: 11.5px; font-weight: 600;
+      background: transparent; color: #94a3b8; border: none; cursor: pointer; transition: 0.2s;
+    }
+    .pill-btn.active { background: #0284c7; color: #ffffff; box-shadow: 0 2px 10px rgba(2, 132, 199, 0.45); }
+    .pill-btn:hover:not(.active) { color: #f8fafc; background: rgba(51, 65, 85, 0.5); }
+
+    /* LEFT PANEL: VARIABLE & TIMELINE */
+    #left-panel { top: 74px; left: 12px; width: 300px; }
+    .sec-title {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px;
+      color: #64748b; font-weight: 700; margin: 12px 0 6px;
+    }
+    .sec-title:first-child { margin-top: 0; }
+    select, button {
+      width: 100%; padding: 7px 10px; border-radius: 8px; font-size: 12px;
+      background: #1e293b; color: #f8fafc; border: 1px solid #334155; cursor: pointer;
+    }
+    select:focus, button:hover { border-color: #38bdf8; outline: none; }
+
+    .btn-primary { background: #0284c7; border-color: #38bdf8; font-weight: 600; }
+    .btn-primary:hover { background: #0369a1; }
+    .btn-row { display: flex; gap: 6px; margin-top: 6px; }
+    .btn-sm { padding: 6px 8px; font-size: 11px; }
+
+    .check-row {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 11px; color: #cbd5e1; margin-top: 7px; cursor: pointer;
+    }
+    .check-row input { accent-color: #38bdf8; cursor: pointer; }
+
+    .date-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: #fbbf24; margin-bottom: 5px; }
+    input[type="range"] { width: 100%; accent-color: #38bdf8; cursor: pointer; }
+
+    .legend-bar {
+      height: 8px; border-radius: 4px; width: 100%; margin-top: 10px;
+      background: linear-gradient(90deg, #3b0764, #2563eb, #06b6d4, #22c55e, #eab308, #ef4444);
+    }
+    .legend-labels { display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; margin-top: 4px; }
+
+    /* RIGHT PANEL: DATASET & POINT INSPECTOR */
+    #right-panel { top: 74px; right: 12px; width: 300px; max-height: calc(100vh - 190px); overflow-y: auto; }
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 99px; font-size: 10px; font-weight: 700; margin-bottom: 7px; letter-spacing: 0.4px; }
+    .badge-demo { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.6); }
+    .badge-live { background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.6); }
+    #file-input { display: none; }
+    #load-summary { font-size: 11px; color: #94a3b8; margin-top: 7px; line-height: 1.4; }
+    .divider { height: 1px; background: rgba(51, 65, 85, 0.7); margin: 11px 0; }
+    .stat-row { display: flex; justify-content: space-between; font-size: 11.5px; padding: 4px 0; border-bottom: 1px solid rgba(51, 65, 85, 0.45); gap: 8px; }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-row span:first-child { color: #94a3b8; }
+    .stat-val { font-weight: 600; color: #f8fafc; text-align: right; }
+
+    /* BOTTOM ATMOSPHERIC HUD */
+    #bottom-hud {
+      bottom: 14px; left: 50%; transform: translateX(-50%);
+      width: 690px; max-width: calc(100vw - 24px);
+      padding: 12px 16px;
+    }
+    .hud-top { display: flex; gap: 18px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+    .pressure-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; flex: 1.3; }
+    .p-chip {
+      padding: 5px 6px; border-radius: 6px; font-size: 11px; font-weight: 700;
+      text-align: center; cursor: pointer; border: 1px solid #334155;
+      background: rgba(30, 41, 59, 0.7); color: #64748b; transition: 0.15s;
+    }
+    .p-chip.active {
+      background: #0284c7; color: #ffffff; border-color: #38bdf8;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+    }
+    .slice-sliders { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
+    .s-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #cbd5e1; }
+    .s-row span:first-child { width: 76px; color: #94a3b8; }
+    .s-row span:last-child { width: 44px; text-align: right; color: #38bdf8; font-weight: 600; }
+
+    .hud-bottom {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 9px; padding-top: 8px; border-top: 1px solid rgba(51, 65, 85, 0.6);
+      font-size: 11px; color: #cbd5e1; flex-wrap: wrap; gap: 8px;
+    }
+    .radio-group { display: flex; align-items: center; gap: 10px; }
+    .radio-group label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+    .radio-group input { accent-color: #38bdf8; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+<div id="cesiumContainer"></div>
+
+<!-- TOP HEADER & VISUALIZATION MODE SWITCHER -->
+<div id="top-bar" class="panel">
+  <div class="title-group">
+    <h1>Mount Lewotobi Laki-Laki 3D Atmospheric Digital Twin</h1>
+    <div class="sub">Multi-Level Plume Visualization &amp; Wind Transport | Domain: 105°–128°E, 14°–3°S (Oct–Dec 2024)</div>
+  </div>
+  <div class="mode-pills">
+    <button class="pill-btn active" id="mode-volume">3D Volume &amp; Cross-Sections</button>
+    <button class="pill-btn" id="mode-wind">3D Wind Streamlines</button>
+    <button class="pill-btn" id="mode-hybrid">Combined (Volume + Wind)</button>
+  </div>
+</div>
+
+<!-- LEFT PANEL: DATASET LAYER & TIMELINE -->
+<div id="left-panel" class="panel">
+  <div class="sec-title">1. Satellite &amp; Reanalysis Layer</div>
+  <select id="layer-select">
+    <option value="daily_so2">Stage ①: Daily SO₂ Plume (TROPOMI)</option>
+    <option value="daily_so4">Stage ①: Sulfate Aerosol SO₄ (MERRA-2)</option>
+    <option value="lag_so4">Stage ②: Peak Lag SO₄ (Days)</option>
+    <option value="r_so4">Stage ②: Peak Correlation (r) SO₄</option>
+    <option value="lag_cot">Stage ②: Peak Lag Cloud Optical Thickness (COT)</option>
+    <option value="r_cot">Stage ②: Peak Correlation (r) COT</option>
+    <option value="lag_rain">Stage ②: Peak Lag Precipitation (GPM)</option>
+    <option value="r_rain">Stage ②: Peak Correlation (r) Precipitation</option>
+    <option value="lag_t2m">Stage ②: Peak Lag 2 m Temperature</option>
+    <option value="r_t2m">Stage ②: Peak Correlation (r) 2 m Temperature</option>
+  </select>
+  <label class="check-row">
+    <input type="checkbox" id="mask-sig" checked />
+    <span>Mask non-significant cells (Stage ②)</span>
+  </label>
+
+  <div class="sec-title">2. Temporal Playback (Oct – Dec 2024)</div>
+  <div class="date-row">
+    <span id="current-date">2024-11-12</span>
+    <span id="eruption-tag">Active Eruption Phase</span>
+  </div>
+  <input type="range" id="time-slider" min="0" max="91" step="0.05" value="42" />
+  <div class="btn-row">
+    <button id="play-btn" class="btn-primary" style="flex:2;">▶ Play</button>
+    <button id="speed-btn" class="btn-sm" style="flex:0.8;" title="Playback speed">1.0x</button>
+  </div>
+
+  <div class="sec-title">3. Camera Presets</div>
+  <div class="btn-row">
+    <button id="cam-region" class="btn-sm">Regional</button>
+    <button id="cam-volcano" class="btn-sm">Vent View</button>
+    <button id="cam-side" class="btn-sm">Profile View</button>
+  </div>
+
+  <div class="legend-bar" id="legend-bar"></div>
+  <div class="legend-labels">
+    <span id="leg-min">Background (0)</span>
+    <span id="leg-mid">Moderate</span>
+    <span id="leg-max">Plume Peak</span>
+  </div>
+</div>
+
+<!-- RIGHT PANEL: DATA BUNDLE & POINT INSPECTOR -->
+<div id="right-panel" class="panel">
+  <div class="sec-title">Dataset Input</div>
+  <div id="data-badge" class="badge badge-demo">SYNTHETIC FALLBACK MODE</div>
+  <div style="font-size:11px; color:#cbd5e1; margin-bottom:7px;">
+    Load exported pipeline bundle (<b>lewotobi_dt_bundle.json</b>):
+  </div>
+  <button class="btn-primary" onclick="document.getElementById('file-input').click()">
+    Upload JSON Bundle
+  </button>
+  <input type="file" id="file-input" accept=".json" />
+  <div id="load-summary">
+    Displaying synthetic fallback fields for visualization testing. Upload the JSON bundle to inspect processed satellite and ERA5 datasets.
+  </div>
+
+  <div class="divider"></div>
+  <div class="sec-title">Grid Point Inspector (Click Globe)</div>
+  <div class="stat-row"><span>Coordinates:</span><span class="stat-val" id="ins-coord">122.77°E, -8.54°S</span></div>
+  <div class="stat-row"><span>Distance from Vent:</span><span class="stat-val" id="ins-dist">0 km</span></div>
+  <div class="stat-row"><span>Plume Height (VAAC):</span><span class="stat-val" id="ins-plume">—</span></div>
+  <div class="stat-row"><span>Active Layer Value:</span><span class="stat-val" id="ins-val">—</span></div>
+  <div class="stat-row"><span>Peak Lag (SO₄):</span><span class="stat-val" id="ins-lag">—</span></div>
+  <div class="stat-row"><span>Peak Correlation r (SO₄):</span><span class="stat-val" id="ins-r">—</span></div>
+</div>
+
+<!-- BOTTOM HUD -->
+<div id="bottom-hud" class="panel">
+  <div class="hud-top">
+    <div>
+      <div style="font-size:10px; color:#64748b; font-weight:700; margin-bottom:5px;">PRESSURE LEVELS (hPa)</div>
+      <div class="pressure-grid" id="pressure-chips">
+        <div class="p-chip active" data-p="100">100</div>
+        <div class="p-chip active" data-p="200">200</div>
+        <div class="p-chip active" data-p="300">300</div>
+        <div class="p-chip active" data-p="500">500</div>
+        <div class="p-chip active" data-p="700">700</div>
+        <div class="p-chip active" data-p="850">850</div>
+      </div>
+    </div>
+
+    <div class="slice-sliders">
+      <div class="s-row">
+        <span>N–S Section</span>
+        <input type="range" id="slice-lon" min="105" max="128" step="0.5" value="122.5" />
+        <span id="val-lon">122.5°</span>
+      </div>
+      <div class="s-row">
+        <span>E–W Section</span>
+        <input type="range" id="slice-lat" min="-14" max="-3" step="0.5" value="-8.5" />
+        <span id="val-lat">-8.5°</span>
+      </div>
+      <div class="s-row">
+        <span>Vertical Exag.</span>
+        <input type="range" id="alt-scale" min="4" max="20" step="1" value="11" />
+        <span id="val-scale">11x</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="hud-bottom">
+    <div class="radio-group">
+      <span style="color:#64748b; font-weight:700;">WIND COLOR:</span>
+      <label><input type="radio" name="wind-color" value="speed" checked /> Speed</label>
+      <label><input type="radio" name="wind-color" value="pressure" /> Pressure Level</label>
+      <label><input type="radio" name="wind-color" value="white" /> Monochrome</label>
+    </div>
+    <div class="radio-group">
+      <label><input type="checkbox" id="show-slices" checked /> Vertical Cross-Sections</label>
+      <label><input type="checkbox" id="show-box" checked /> Domain Bounding Box</label>
+      <label><input type="checkbox" id="show-traj" checked /> ERA5 300 hPa Trajectories</label>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+// 1. ATMOSPHERIC PRESSURE LEVELS & SYNTHETIC FALLBACK GENERATOR
+// ============================================================================
+const PRESSURE_LEVELS = [
+  { p: 850, baseAlt: 1500,  altFrac: 0.08, weight: 0.45, speedMult: 0.65, dirShift: 0.12 },
+  { p: 700, baseAlt: 3000,  altFrac: 0.22, weight: 0.65, speedMult: 0.80, dirShift: 0.08 },
+  { p: 500, baseAlt: 5600,  altFrac: 0.42, weight: 0.85, speedMult: 0.95, dirShift: 0.04 },
+  { p: 300, baseAlt: 9200,  altFrac: 0.62, weight: 1.00, speedMult: 1.25, dirShift: 0.00 },
+  { p: 200, baseAlt: 11800, altFrac: 0.78, weight: 0.90, speedMult: 1.35, dirShift: -0.04 },
+  { p: 100, baseAlt: 16200, altFrac: 0.95, weight: 0.55, speedMult: 1.10, dirShift: -0.08 }
+];
+
+const CRATER_LON = 122.77;
+const CRATER_LAT = -8.54;
+
+function createFallbackData() {
+  const lons = [], lats = [], dates = [];
+  for (let x = 105.25; x < 128; x += 0.5) lons.push(Number(x.toFixed(2)));
+  for (let y = -13.75; y < -3; y += 0.5) lats.push(Number(y.toFixed(2)));
+
+  const start = new Date("2024-10-01");
+  for (let d = 0; d < 92; d++) {
+    const dt = new Date(start.getTime() + d * 86400000);
+    dates.push(dt.toISOString().slice(0, 10));
+  }
+
+  const so2_daily = [], so4_daily = [];
+  const lag_so4 = [], r_so4 = [], sig_so4 = [];
+  const lag_cot = [], r_cot = [], sig_cot = [];
+  const lag_rain = [], r_rain = [], sig_rain = [];
+
+  for (let r = 0; r < lats.length; r++) {
+    const rLSo4 = [], rRSo4 = [], rSSo4 = [];
+    const rLCot = [], rRCot = [], rSCot = [];
+    const rLRain = [], rRRain = [], rSRain = [];
+    for (let c = 0; c < lons.length; c++) {
+      const dx = lons[c] - CRATER_LON, dy = lats[r] - CRATER_LAT;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const inPlume = (dx <= 1.5 && dx >= -17) && Math.abs(dy - dx * 0.12) < 3.6;
+      const strength = inPlume ? Math.exp(-dist / 9.5) : Math.exp(-dist / 3.2) * 0.25;
+
+      const lSo4 = Math.min(14, Math.max(1, Math.round(dist * 0.72 + 1)));
+      rLSo4.push(lSo4); rRSo4.push(Number((0.72 * strength).toFixed(3))); rSSo4.push(strength > 0.3 ? 1 : 0);
+      rLCot.push(Math.min(15, lSo4 + 2)); rRCot.push(Number((0.55 * strength).toFixed(3))); rSCot.push(strength > 0.35 ? 1 : 0);
+      rLRain.push(Math.min(15, lSo4 + 4)); rRRain.push(Number((0.44 * strength).toFixed(3))); rSRain.push(strength > 0.4 ? 1 : 0);
+    }
+    lag_so4.push(rLSo4); r_so4.push(rRSo4); sig_so4.push(rSSo4);
+    lag_cot.push(rLCot); r_cot.push(rRCot); sig_cot.push(rSCot);
+    lag_rain.push(rLRain); r_rain.push(rRRain); sig_rain.push(rSRain);
+  }
+
+  for (let d = 0; d < 92; d++) {
+    const daySo2 = [], daySo4 = [];
+    const pulse = (d >= 33 && d <= 65)
+      ? Math.exp(-Math.pow((d - 42) / 9, 2)) * 4.5 + (d >= 33 && d <= 38 ? 2.5 : 0)
+      : 0.04;
+    for (let r = 0; r < lats.length; r++) {
+      const row2 = [], row4 = [];
+      for (let c = 0; c < lons.length; c++) {
+        const dx = lons[c] - CRATER_LON, dy = lats[r] - CRATER_LAT;
+        const front = Math.max(0, (d - 33) * 0.7);
+        const axis = Math.abs(dy - dx * 0.13);
+        let v2 = 0.0;
+        if (dx <= 1.2 && dx >= -front && axis < 3.4) {
+          v2 = pulse * Math.exp(-Math.abs(dx) / 8.0) * Math.exp(-axis / 1.6);
+        }
+        row2.push(Number(v2.toFixed(3)));
+        row4.push(Number((v2 * 0.8 * (d > 35 ? 1.1 : 0.35)).toFixed(3)));
+      }
+      daySo2.push(row2); daySo4.push(row4);
+    }
+    so2_daily.push(daySo2); so4_daily.push(daySo4);
+  }
+
+  return {
+    lons, lats, dates,
+    daily: { so2: so2_daily, so4: so4_daily },
+    stage2: {
+      lag: { so4: lag_so4, cot: lag_cot, rain: lag_rain },
+      r: { so4: r_so4, cot: r_cot, rain: r_rain },
+      sig: { so4: sig_so4, cot: sig_cot, rain: sig_rain }
+    }
+  };
+}
+
+let DATA = createFallbackData();
+
+// ============================================================================
+// 2. CESIUMJS GLOBE INITIALIZATION
+// ============================================================================
+const viewer = new Cesium.Viewer("cesiumContainer", {
+  baseLayer: new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    maximumLevel: 18
+  })),
+  baseLayerPicker: false, geocoder: false, homeButton: false,
+  sceneModePicker: false, navigationHelpButton: false, animation: false,
+  timeline: false, fullscreenButton: false, infoBox: false, selectionIndicator: false,
+  requestRenderMode: false
+});
+
+viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+  url: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+  maximumLevel: 18
+}));
+viewer.scene.globe.enableLighting = false;
+
+viewer.entities.add({
+  position: Cesium.Cartesian3.fromDegrees(CRATER_LON, CRATER_LAT, 15000),
+  point: { pixelSize: 10, color: Cesium.Color.RED, outlineColor: Cesium.Color.YELLOW, outlineWidth: 2 },
+  label: {
+    text: "Mt. Lewotobi Laki-Laki",
+    font: "bold 12px Segoe UI, sans-serif",
+    fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 3,
+    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+    pixelOffset: new Cesium.Cartesian2(0, -18),
+    disableDepthTestDistance: Number.POSITIVE_INFINITY
+  }
+});
+
+// ============================================================================
+// 3. 3D ATMOSPHERIC VOLUME & VERTICAL CROSS-SECTIONS
+// ============================================================================
+let vizMode = "volume";
+let activePressures = new Set([100, 200, 300, 500, 700, 850]);
+let simTime = 42.0;
+let isPlaying = false;
+let speedMult = 1.0;
+
+let boxEntities = [];
+let layerPrimitives = {};
+let layerBuffers = {};
+let sliceLonPrimitive = null;
+let sliceLatPrimitive = null;
+
+const HORIZ_W = 128, HORIZ_H = 64;
+const VERT_W = 128, VERT_H = 48;
+
+function makeCanvasPair(w, h) {
+  const pair = [0, 1].map(() => {
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    return { canvas: c, ctx, img: ctx.createImageData(w, h) };
+  });
+  return { pair, idx: 0 };
+}
+
+PRESSURE_LEVELS.forEach(lvl => {
+  layerBuffers[lvl.p] = makeCanvasPair(HORIZ_W, HORIZ_H);
+});
+const sliceLonBuffers = makeCanvasPair(VERT_W, VERT_H);
+const sliceLatBuffers = makeCanvasPair(VERT_W, VERT_H);
+
+const COLOR_LUT = new Uint8ClampedArray(256 * 4);
+for (let i = 0; i < 256; i++) {
+  const t = i / 255;
+  let r, g, b;
+  if (t < 0.2) {
+    const k = t / 0.2;
+    r = 65 + k * 20; g = 35 + k * 90; b = 155 + k * 80;
+  } else if (t < 0.45) {
+    const k = (t - 0.2) / 0.25;
+    r = 85 - k * 65; g = 125 + k * 105; b = 235 - k * 35;
+  } else if (t < 0.7) {
+    const k = (t - 0.45) / 0.25;
+    r = 20 + k * 215; g = 230 - k * 15; b = 200 - k * 170;
+  } else {
+    const k = (t - 0.7) / 0.3;
+    r = 235 + k * 20; g = 215 - k * 175; b = 30 - k * 20;
+  }
+  COLOR_LUT[i * 4]     = r;
+  COLOR_LUT[i * 4 + 1] = g;
+  COLOR_LUT[i * 4 + 2] = b;
+  COLOR_LUT[i * 4 + 3] = Math.min(255, (0.15 + t * 0.52) * 255);
+}
+
+function computeAutoScale(arr3d) {
+  if (!arr3d) return 3.5;
+  const pos = [];
+  for (let d = 0; d < arr3d.length; d += 2) {
+    const g = arr3d[d];
+    if (!g) continue;
+    for (let r = 0; r < g.length; r++) {
+      for (let c = 0; c < g[r].length; c++) {
+        const v = g[r][c];
+        if (typeof v === "number" && isFinite(v) && v > 0) pos.push(v);
+      }
+    }
+  }
+  if (!pos.length) return 3.5;
+  pos.sort((a, b) => a - b);
+  return pos[Math.floor(pos.length * 0.97)] || pos[pos.length - 1];
+}
+
+let dailyScales = { so2: 3.5, so4: 2.5, so2v: 3.5 };
+function computeAutoScaleVert(V) {
+  if (!V?.so2) return null;
+  const pos = [];
+  for (let d = 0; d < V.so2.length; d += 2)
+    for (const lvl of V.so2[d]) for (const row of lvl) for (const v of row)
+      if (typeof v === "number" && isFinite(v) && v > 0) pos.push(v);
+  if (!pos.length) return null;
+  pos.sort((a, b) => a - b);
+  return pos[Math.floor(pos.length * 0.97)] || pos[pos.length - 1];
+}
+function refreshAutoScales() {
+  dailyScales.so2 = computeAutoScale(DATA.daily?.so2);
+  dailyScales.so4 = computeAutoScale(DATA.daily?.so4);
+  dailyScales.so2v = computeAutoScaleVert(DATA.vertical) ?? dailyScales.so2;
+}
+
+// 3D SO2 vertical field (from exported bundle if available; active only for daily SO2 layer)
+function getVertical() {
+  const V = DATA.vertical;
+  if (!V?.so2 || document.getElementById("layer-select").value !== "daily_so2") return null;
+  const maxDay = V.so2.length - 1;
+  const d0 = Math.min(maxDay, Math.floor(simTime)), d1 = Math.min(maxDay, d0 + 1);
+  const idx = PRESSURE_LEVELS.map(l => V.levels.indexOf(l.p));
+  return {
+    m0s: idx.map(i => (i < 0 ? null : V.so2[d0][i])),
+    m1s: idx.map(i => (i < 0 ? null : V.so2[d1][i]))
+  };
+}
+refreshAutoScales();
+
+// Bilinear grid sampler (row 0 = southern edge; cell centers mapped; masked/NaN cells skipped)
+let _S = 0, _W = 0;
+function acc(m, y, x, w) {
+  if (w <= 0) return;
+  const v = m[y][x];
+  if (v === null || v === undefined) return;
+  const n = +v;
+  if (!isFinite(n)) return;
+  _S += n * w; _W += w;
+}
+function bilinear(m, y0, y1, x0, x1, w00, w10, w01, w11) {
+  _S = 0; _W = 0;
+  acc(m, y0, x0, w00); acc(m, y0, x1, w10); acc(m, y1, x0, w01); acc(m, y1, x1, w11);
+  return _W >= 0.5 ? _S / _W : NaN;
+}
+
+function sampleBilinearTemporal(m0, m1, frac, u, v, layerType = "daily") {
+  if (!m0 || !m0.length || !m0[0]?.length) return layerType === "daily" ? 0 : NaN;
+
+  const rows = m0.length, cols = m0[0].length;
+  const gx = Math.max(0, Math.min(cols - 1.001, u * cols - 0.5));
+  const gy = Math.max(0, Math.min(rows - 1.001, v * rows - 0.5));
+  const x0 = gx | 0, y0 = gy | 0;
+  const x1 = x0 + 1 < cols ? x0 + 1 : x0;
+  const y1 = y0 + 1 < rows ? y0 + 1 : y0;
+  const fx = gx - x0, fy = gy - y0;
+  const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
+
+  const val0 = bilinear(m0, y0, y1, x0, x1, w00, w10, w01, w11);
+  if (!m1 || frac <= 0.001) return val0;
+
+  const val1 = bilinear(m1, y0, y1, x0, x1, w00, w10, w01, w11);
+  if (isNaN(val0) || isNaN(val1)) return frac < 0.5 ? val0 : val1;
+  return val0 + (val1 - val0) * frac;
+}
+
+function paintHorizontalDoubleBuf(bufWrap, m0, m1, frac, maxVal, weight, isDiv, layerType) {
+  bufWrap.idx = 1 - bufWrap.idx;
+  const { canvas, ctx, img } = bufWrap.pair[bufWrap.idx];
+  const data = img.data;
+  const invMax = 1 / (maxVal || 1);
+
+  for (let py = 0; py < HORIZ_H; py++) {
+    const v = 1 - py / (HORIZ_H - 1);
+    for (let px = 0; px < HORIZ_W; px++) {
+      const u = px / (HORIZ_W - 1);
+      const raw = sampleBilinearTemporal(m0, m1, frac, u, v, layerType) * weight;
+      const idx = (py * HORIZ_W + px) * 4;
+
+      if (!isFinite(raw)) { data[idx + 3] = 0; continue; }
+      if (isDiv) {
+        const t = Math.max(-1, Math.min(1, raw / (maxVal || 0.8)));
+        data[idx]     = t < 0 ? 45 : 245;
+        data[idx + 1] = t < 0 ? 120 : 65;
+        data[idx + 2] = t < 0 ? 245 : 55;
+        data[idx + 3] = (0.12 + Math.abs(t) * 0.55) * 255;
+      } else {
+        const lutIdx = (Math.max(0, Math.min(1, raw * invMax)) * 255) | 0;
+        const base = lutIdx * 4;
+        data[idx]     = COLOR_LUT[base];
+        data[idx + 1] = COLOR_LUT[base + 1];
+        data[idx + 2] = COLOR_LUT[base + 2];
+        data[idx + 3] = COLOR_LUT[base + 3];
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
+}
+
+function paintVerticalDoubleBuf(bufWrap, m0, m1, frac, maxVal, fixedFrac, isLonSlice, isDiv, layerType, vz) {
+  bufWrap.idx = 1 - bufWrap.idx;
+  const { canvas, ctx, img } = bufWrap.pair[bufWrap.idx];
+  const data = img.data;
+  const invMax = 1 / (maxVal || 1);
+  const defaultInjAltFrac = 0.62; // 300 hPa reference level when 2D column data is projected
+
+  for (let py = 0; py < VERT_H; py++) {
+    const altFrac = 1 - py / (VERT_H - 1);
+    const vertProfile = vz ? 1.0 : Math.exp(-Math.pow((altFrac - defaultInjAltFrac) / 0.34, 2)) * 1.18;
+
+    let la = 0, lb = 0, lt = 0;
+    if (vz) {
+      const AF = PRESSURE_LEVELS.map(l => l.altFrac);
+      if (altFrac <= AF[0]) { la = lb = 0; }
+      else if (altFrac >= AF[AF.length - 1]) { la = lb = AF.length - 1; }
+      else {
+        while (la < AF.length - 2 && altFrac > AF[la + 1]) la++;
+        lb = la + 1;
+        lt = (altFrac - AF[la]) / (AF[lb] - AF[la]);
+      }
+    }
+
+    for (let px = 0; px < VERT_W; px++) {
+      const along = px / (VERT_W - 1);
+      const u = isLonSlice ? fixedFrac : along;
+      const v = isLonSlice ? along : fixedFrac;
+      let base;
+      if (vz) {
+        const a = sampleBilinearTemporal(vz.m0s[la], vz.m1s[la], frac, u, v, layerType);
+        if (la === lb) base = a;
+        else {
+          const b = sampleBilinearTemporal(vz.m0s[lb], vz.m1s[lb], frac, u, v, layerType);
+          base = (isNaN(a) && isNaN(b)) ? NaN : (isNaN(a) ? 0 : a) * (1 - lt) + (isNaN(b) ? 0 : b) * lt;
+        }
+      } else {
+        base = sampleBilinearTemporal(m0, m1, frac, u, v, layerType);
+      }
+      const raw = base * vertProfile;
+      const idx = (py * VERT_W + px) * 4;
+
+      if (!isFinite(raw)) { data[idx + 3] = 0; continue; }
+      if (isDiv) {
+        const t = Math.max(-1, Math.min(1, raw / (maxVal || 0.8)));
+        data[idx]     = t < 0 ? 50 : 245;
+        data[idx + 1] = t < 0 ? 130 : 75;
+        data[idx + 2] = t < 0 ? 250 : 60;
+        data[idx + 3] = (0.18 + Math.abs(t) * 0.62) * 255;
+      } else {
+        const lutIdx = (Math.max(0, Math.min(1, raw * invMax)) * 255) | 0;
+        const baseIdx = lutIdx * 4;
+        data[idx]     = COLOR_LUT[baseIdx];
+        data[idx + 1] = COLOR_LUT[baseIdx + 1];
+        data[idx + 2] = COLOR_LUT[baseIdx + 2];
+        data[idx + 3] = Math.min(255, COLOR_LUT[baseIdx + 3] + 22);
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
+}
+
+function createTexturedPrimitive(geometry, canvas) {
+  return new Cesium.Primitive({
+    geometryInstances: new Cesium.GeometryInstance({ geometry }),
+    appearance: new Cesium.MaterialAppearance({
+      material: Cesium.Material.fromType("Image", {
+        image: canvas,
+        transparent: true
+      }),
+      translucent: true,
+      flat: true,
+      closed: false
+    }),
+    asynchronous: false
+  });
+}
+
+function buildAtmosphericBox() {
+  boxEntities.forEach(e => viewer.entities.remove(e));
+  boxEntities = [];
+  const scale = parseFloat(document.getElementById("alt-scale").value);
+  const showBox = document.getElementById("show-box").checked && vizMode !== "wind";
+  const zBot = 1500 * scale;
+  const zTop = 16200 * scale;
+  const corners = [[105, -14], [128, -14], [128, -3], [105, -3]];
+
+  [zBot, zTop].forEach((z, idx) => {
+    const pts = [];
+    corners.forEach(([x, y]) => pts.push(x, y, z));
+    pts.push(corners[0][0], corners[0][1], z);
+    boxEntities.push(viewer.entities.add({
+      show: showBox,
+      polyline: {
+        positions: Cesium.Cartesian3.fromDegreesArrayHeights(pts),
+        width: idx === 1 ? 2.0 : 1.5,
+        material: Cesium.Color.DEEPSKYBLUE.withAlpha(idx === 1 ? 0.65 : 0.4)
+      }
+    }));
+  });
+
+  corners.forEach(([x, y]) => {
+    boxEntities.push(viewer.entities.add({
+      show: showBox,
+      polyline: {
+        positions: Cesium.Cartesian3.fromDegreesArrayHeights([x, y, zBot, x, y, zTop]),
+        width: 1.5,
+        material: Cesium.Color.DEEPSKYBLUE.withAlpha(0.45)
+      }
+    }));
+  });
+}
+
+// ============================================================================
+// 4. ERA5 300 hPa DETERMINISTIC TRAJECTORIES (FROM BUNDLE)
+// ============================================================================
+let trajEntities = [];
+function rebuildTrajectories() {
+  trajEntities.forEach(e => viewer.entities.remove(e));
+  trajEntities = [];
+  const on = document.getElementById("show-traj")?.checked;
+  const list = DATA.traj;
+  if (!on || !Array.isArray(list) || !list.length) return;
+  const scale = parseFloat(document.getElementById("alt-scale").value);
+  const alt = (PRESSURE_LEVELS.find(l => l.p === 300) || PRESSURE_LEVELS[3]).baseAlt * scale;
+  const n = list.length;
+  list.forEach((tr, i) => {
+    const pts = tr.pts || tr;
+    if (!Array.isArray(pts) || pts.length < 2) return;
+    const flat = [];
+    pts.forEach(p => flat.push(p[0], p[1], alt));
+    const k = n > 1 ? i / (n - 1) : 0;
+    trajEntities.push(viewer.entities.add({
+      polyline: {
+        positions: Cesium.Cartesian3.fromDegreesArrayHeights(flat),
+        width: 1.6,
+        material: Cesium.Color.fromHsl(0.13 - 0.07 * k, 1.0, 0.62, 0.8)
+      }
+    }));
+  });
+}
+
+// ============================================================================
+// 5. 3D WIND STREAMLINES (ERA5 WIND OR SYNTHETIC FALLBACK)
+// ============================================================================
+const windCollection = viewer.scene.primitives.add(new Cesium.PolylineCollection());
+let windRibbons = [];
+const NUM_RIBBONS = 420;
+const TRAIL_STEPS = 14;
+
+function sampleRealWind(lon, lat, p, t) {
+  const W = DATA.wind;
+  if (!W || !W.u || !W.lons || !W.lats) return null;
+  const li = W.levels.indexOf(p);
+  if (li < 0) return null;
+  const nt = W.u.length, nx = W.lons.length, ny = W.lats.length;
+  const dlon = W.lons[1] - W.lons[0], dlat = W.lats[1] - W.lats[0];
+  const fi = Math.max(0, Math.min(nx - 1.001, (lon - W.lons[0]) / dlon));
+  const fj = Math.max(0, Math.min(ny - 1.001, (lat - W.lats[0]) / dlat));
+  const ft = Math.max(0, Math.min(nt - 1.001, t - (W.t0 || 0)));
+  const i0 = fi | 0, j0 = fj | 0, k0 = ft | 0;
+  const wi = fi - i0, wj = fj - j0, wt = ft - k0;
+  let u = 0, v = 0;
+  for (let dk = 0; dk < 2; dk++) {
+    const wk = dk ? wt : 1 - wt;
+    const Uk = W.u[k0 + dk][li], Vk = W.v[k0 + dk][li];
+    for (let dj = 0; dj < 2; dj++) {
+      const wjj = dj ? wj : 1 - wj;
+      for (let di = 0; di < 2; di++) {
+        const w = wk * wjj * (di ? wi : 1 - wi);
+        u += w * (Uk[j0 + dj][i0 + di] ?? 0);
+        v += w * (Vk[j0 + dj][i0 + di] ?? 0);
+      }
+    }
+  }
+  return { u, v };
+}
+const WIND_VIS = 0.034;
+
+function sampleWindVector(lon, lat, pLevel, tFloat) {
+  let u, v;
+  const real = sampleRealWind(lon, lat, pLevel.p, tFloat);
+  if (real) {
+    const k = WIND_VIS / Math.max(0.2, Math.cos(lat * Math.PI / 180));
+    u = real.u * k;
+    v = real.v * WIND_VIS;
+  } else {
+    const dx = lon - CRATER_LON, dy = lat - CRATER_LAT;
+    const dist = Math.hypot(dx, dy);
+    const phaseShift = Math.sin(tFloat * 0.15 + lon * 0.25) * 0.08;
+    u = -(0.34 + 0.12 * Math.cos(lat * 0.35 + tFloat * 0.1)) * pLevel.speedMult;
+    v = (0.06 * Math.sin(lon * 0.3 + tFloat * 0.12) + phaseShift + pLevel.dirShift) * pLevel.speedMult;
+
+    if (dist < 6.0 && dx < 1.5) {
+      const jet = Math.exp(-dist / 3.8) * 0.22;
+      u -= jet;
+      v += (dy >= 0 ? 0.04 : -0.04) * jet;
+    }
+  }
+  return { u, v, speed: Math.hypot(u, v) };
+}
+
+function getRibbonColor(speed, pVal, mode, alpha) {
+  if (mode === "white") return Cesium.Color.WHITE.withAlpha(alpha);
+  if (mode === "pressure") {
+    const map = {
+      100: Cesium.Color.fromCssColorString("#c084fc"),
+      200: Cesium.Color.fromCssColorString("#38bdf8"),
+      300: Cesium.Color.fromCssColorString("#22d3ee"),
+      500: Cesium.Color.fromCssColorString("#4ade80"),
+      700: Cesium.Color.fromCssColorString("#facc15"),
+      850: Cesium.Color.fromCssColorString("#fb923c")
+    };
+    return (map[pVal] || Cesium.Color.CYAN).withAlpha(alpha);
+  }
+  const norm = Math.max(0, Math.min(1, (speed - 0.05) / 0.6));
+  if (norm < 0.45) {
+    const k = norm / 0.45;
+    return Cesium.Color.fromBytes(140 + k * 115, 190 + k * 65, 255, alpha * 255);
+  } else {
+    const k = (norm - 0.45) / 0.55;
+    return Cesium.Color.fromBytes(255, 240 - k * 145, 235 - k * 165, alpha * 255);
+  }
+}
+
+function initWindRibbons() {
+  windCollection.removeAll();
+  windRibbons = [];
+
+  for (let i = 0; i < NUM_RIBBONS; i++) {
+    const pLevel = PRESSURE_LEVELS[i % PRESSURE_LEVELS.length];
+    const startLon = 105.5 + Math.random() * 22.2;
+    const startLat = -13.7 + Math.random() * 10.4;
+    const histLon = new Float64Array(TRAIL_STEPS);
+    const histLat = new Float64Array(TRAIL_STEPS);
+    const cartBuf = new Array(TRAIL_STEPS);
+
+    for (let s = 0; s < TRAIL_STEPS; s++) {
+      histLon[s] = startLon;
+      histLat[s] = startLat;
+      cartBuf[s] = Cesium.Cartesian3.fromDegrees(startLon, startLat, pLevel.baseAlt * 11);
+    }
+
+    const poly = windCollection.add({
+      positions: cartBuf,
+      width: 2.0,
+      material: Cesium.Material.fromType("PolylineGlow", {
+        glowPower: 0.22,
+        color: Cesium.Color.WHITE.withAlpha(0.85)
+      })
+    });
+
+    windRibbons.push({
+      poly, pLevel,
+      lon: startLon, lat: startLat,
+      age: Math.random() * 80,
+      maxAge: 70 + Math.random() * 50,
+      histLon, histLat, cartBuf
+    });
+  }
+}
+
+function stepWindRibbons(dt) {
+  const showWind = (vizMode === "wind" || vizMode === "hybrid");
+  windCollection.show = showWind;
+  if (!showWind) return;
+
+  const scale = parseFloat(document.getElementById("alt-scale").value);
+  const colorMode = document.querySelector('input[name="wind-color"]:checked').value;
+  const stepFactor = Math.min(dt, 0.05) * 22.0;
+
+  for (let i = 0; i < windRibbons.length; i++) {
+    const rb = windRibbons[i];
+    const pActive = activePressures.has(rb.pLevel.p);
+    rb.poly.show = pActive;
+    if (!pActive) continue;
+
+    rb.age += stepFactor;
+    const { u, v, speed } = sampleWindVector(rb.lon, rb.lat, rb.pLevel, simTime);
+    rb.lon += u * 0.36 * stepFactor;
+    rb.lat += v * 0.36 * stepFactor;
+
+    if (rb.age > rb.maxAge || rb.lon < 105.2 || rb.lon > 127.8 || rb.lat < -13.8 || rb.lat > -3.1) {
+      rb.lon = 106.0 + Math.random() * 21.8;
+      rb.lat = -13.7 + Math.random() * 10.4;
+      rb.age = 0;
+      for (let s = 0; s < TRAIL_STEPS; s++) {
+        rb.histLon[s] = rb.lon;
+        rb.histLat[s] = rb.lat;
+      }
+    } else {
+      for (let s = TRAIL_STEPS - 1; s > 0; s--) {
+        rb.histLon[s] = rb.histLon[s - 1];
+        rb.histLat[s] = rb.histLat[s - 1];
+      }
+      rb.histLon[0] = rb.lon;
+      rb.histLat[0] = rb.lat;
+    }
+
+    const alt = rb.pLevel.baseAlt * scale;
+    for (let s = 0; s < TRAIL_STEPS; s++) {
+      Cesium.Cartesian3.fromDegrees(rb.histLon[s], rb.histLat[s], alt, Cesium.Ellipsoid.WGS84, rb.cartBuf[s]);
+    }
+    rb.poly.positions = rb.cartBuf;
+
+    const fade = Math.sin((rb.age / rb.maxAge) * Math.PI);
+    rb.poly.material.uniforms.color = getRibbonColor(speed, rb.pLevel.p, colorMode, 0.25 + fade * 0.68);
+  }
+}
+
+// ============================================================================
+// 6. VOLUME RENDERING, CROSS-SECTIONS & POINT INSPECTOR
+// ============================================================================
+let inspectedCoord = { lon: CRATER_LON, lat: CRATER_LAT };
+
+const _viewCache = {};
+function stage2Grid(kind, k) {
+  const raw = DATA.stage2?.[kind]?.[k];
+  const sig = DATA.stage2?.sig?.[k];
+  const maskOn = document.getElementById("mask-sig")?.checked;
+  if (!raw || !sig || !maskOn) return raw;
+  const key = kind + "_" + k;
+  if (!_viewCache[key] || _viewCache[key].src !== raw || _viewCache[key].sig !== sig) {
+    _viewCache[key] = { src: raw, sig, grid: raw.map((row, y) => row.map((v, x) => (sig[y]?.[x] ? v : null))) };
+  }
+  return _viewCache[key].grid;
+}
+function sigAt(k, u, v) {
+  const sig = DATA.stage2?.sig?.[k];
+  if (!sig) return null;
+  const rows = sig.length, cols = sig[0].length;
+  const x = Math.max(0, Math.min(cols - 1, Math.round(u * cols - 0.5)));
+  const y = Math.max(0, Math.min(rows - 1, Math.round(v * rows - 0.5)));
+  return sig[y][x] ? 1 : 0;
+}
+function lagMax() { return DATA.meta?.max_lag ?? 15; }
+
+function getActiveMatrices() {
+  const layer = document.getElementById("layer-select").value;
+  const maxDay = Math.max(0, (DATA.dates?.length || 1) - 1);
+  const d0 = Math.min(maxDay, Math.floor(simTime));
+  const d1 = Math.min(maxDay, d0 + 1);
+  const frac = simTime - d0;
+
+  if (layer === "daily_so2") {
+    return { m0: DATA.daily?.so2?.[d0], m1: DATA.daily?.so2?.[d1], frac, maxVal: DATA.vertical ? dailyScales.so2v : dailyScales.so2, isDiv: false, unit: "", layerType: "daily" };
+  }
+  if (layer === "daily_so4") {
+    return { m0: DATA.daily?.so4?.[d0], m1: DATA.daily?.so4?.[d1], frac, maxVal: dailyScales.so4, isDiv: false, unit: "", layerType: "daily" };
+  }
+  if (layer.startsWith("lag_")) {
+    const k = layer.split("_")[1];
+    return { m0: stage2Grid("lag", k), m1: null, frac: 0, maxVal: lagMax(), isDiv: false, unit: " days", layerType: "lag" };
+  }
+  const k = layer.split("_")[1];
+  return { m0: stage2Grid("r", k), m1: null, frac: 0, maxVal: 0.8, isDiv: true, unit: "", layerType: "r" };
+}
+
+function refreshInspector() {
+  const { lon, lat } = inspectedCoord;
+  const u = (lon - 105) / 23;
+  const v = (lat - (-14)) / 11;
+  const { m0, m1, frac, unit, layerType } = getActiveMatrices();
+  const val = sampleBilinearTemporal(m0, m1, frac, u, v, layerType);
+  const lag = sampleBilinearTemporal(DATA.stage2?.lag?.so4, null, 0, u, v, "lag");
+  const rVal = sampleBilinearTemporal(DATA.stage2?.r?.so4, null, 0, u, v, "r");
+
+  document.getElementById("ins-coord").textContent = `${lon.toFixed(2)}°E, ${lat.toFixed(2)}°S`;
+  document.getElementById("ins-dist").textContent = `${haversineKm(CRATER_LON, CRATER_LAT, lon, lat)} km`;
+  document.getElementById("ins-val").textContent = !Number.isFinite(val)
+    ? "— (masked / no data)"
+    : `${Math.abs(val) < 0.01 && val !== 0 ? val.toExponential(2) : val.toFixed(3)}${unit}`;
+
+  const sg = sigAt("so4", u, v);
+  const sgTxt = sg === null ? "" : (sg ? "" : " (not sig.)");
+  document.getElementById("ins-lag").textContent = Number.isFinite(lag) ? `${Math.round(lag)} days${sgTxt}` : "—";
+  document.getElementById("ins-r").textContent = Number.isFinite(rVal) ? `${rVal.toFixed(3)}${sgTxt}` : "—";
+}
+
+let lastGeomScale = -1;
+let lastGeomBox = null;
+let lastSliceLon = -999;
+let lastSliceLat = -999;
+
+function updateVolumeAndSlices(updateLegend = true) {
+  const scale = parseFloat(document.getElementById("alt-scale").value);
+  const sliceLon = parseFloat(document.getElementById("slice-lon").value);
+  const sliceLat = parseFloat(document.getElementById("slice-lat").value);
+  const showSlices = document.getElementById("show-slices").checked;
+  const showBox = document.getElementById("show-box").checked && vizMode !== "wind";
+
+  const dayIdx = Math.min((DATA.dates?.length || 1) - 1, Math.floor(simTime));
+  const dateStr = DATA.dates[dayIdx] || `Day ${dayIdx + 1}`;
+  document.getElementById("current-date").textContent = dateStr;
+  document.getElementById("eruption-tag").textContent =
+    (dateStr >= "2024-11-03" && dateStr <= "2024-12-03") ? "Active Eruption Phase" : "Monitoring Period";
+
+  const { m0, m1, frac, maxVal, isDiv, layerType } = getActiveMatrices();
+  const vz = getVertical();
+
+  const PH = DATA.plume, pel = document.getElementById("ins-plume");
+  pel.textContent = (PH?.height_km && Number.isFinite(PH.height_km[dayIdx]))
+    ? `${PH.height_km[dayIdx].toFixed(1)} km a.s.l.${PH.documented?.[dayIdx] ? "" : " (interpolated)"}` : "—";
+
+  if (updateLegend) {
+    document.getElementById("val-lon").textContent = `${sliceLon.toFixed(1)}°`;
+    document.getElementById("val-lat").textContent = `${sliceLat.toFixed(1)}°`;
+    document.getElementById("val-scale").textContent = `${scale}x`;
+    document.getElementById("legend-bar").style.background = isDiv
+      ? "linear-gradient(90deg, #2563eb, #f8fafc, #ef4444)"
+      : "linear-gradient(90deg, #3b0764, #2563eb, #06b6d4, #22c55e, #eab308, #ef4444)";
+    document.getElementById("leg-min").textContent = isDiv ? "-0.8" : "Background (0)";
+    document.getElementById("leg-mid").textContent = isDiv ? "0.0" : (maxVal >= 1 ? (maxVal / 2).toFixed(1) : (maxVal / 2).toExponential(1));
+    document.getElementById("leg-max").textContent = isDiv ? "+0.8" : (maxVal >= 1 ? maxVal.toFixed(1) : maxVal.toExponential(1));
+  }
+
+  const scaleChanged = (scale !== lastGeomScale);
+  if (scaleChanged || showBox !== lastGeomBox) {
+    buildAtmosphericBox();
+    lastGeomBox = showBox;
+  }
+
+  const showVol = (vizMode === "volume" || vizMode === "hybrid");
+
+  // 1. Horizontal Pressure Layers
+  PRESSURE_LEVELS.forEach((lvl, li) => {
+    const isVisible = showVol && activePressures.has(lvl.p);
+    let prim = layerPrimitives[lvl.p];
+
+    if (scaleChanged && prim) {
+      viewer.scene.primitives.remove(prim);
+      prim = null;
+      layerPrimitives[lvl.p] = null;
+    }
+
+    const lm0 = vz ? vz.m0s[li] : m0;
+    const lm1 = vz ? vz.m1s[li] : m1;
+    const layerWeight = vz ? 1.0 : lvl.weight;
+
+    if (!prim) {
+      const initCanvas = paintHorizontalDoubleBuf(layerBuffers[lvl.p], lm0, lm1, frac, maxVal, layerWeight, isDiv, layerType);
+      const geom = new Cesium.RectangleGeometry({
+        rectangle: Cesium.Rectangle.fromDegrees(105, -14, 128, -3),
+        height: lvl.baseAlt * scale,
+        vertexFormat: Cesium.MaterialAppearance.MaterialSupport.TEXTURED.vertexFormat
+      });
+      prim = viewer.scene.primitives.add(createTexturedPrimitive(geom, initCanvas));
+      layerPrimitives[lvl.p] = prim;
+    }
+
+    prim.show = isVisible;
+    if (isVisible) {
+      const nextCanvas = paintHorizontalDoubleBuf(layerBuffers[lvl.p], lm0, lm1, frac, maxVal, layerWeight, isDiv, layerType);
+      prim.appearance.material.uniforms.image = nextCanvas;
+    }
+  });
+
+  // 2. Vertical Cross-Sections
+  const zBot = 1500 * scale, zTop = 16200 * scale;
+  const lonFrac = (sliceLon - 105) / 23;
+  const latFrac = (sliceLat - (-14)) / 11;
+
+  if ((scaleChanged || sliceLon !== lastSliceLon) && sliceLonPrimitive) {
+    viewer.scene.primitives.remove(sliceLonPrimitive);
+    sliceLonPrimitive = null;
+  }
+  if (!sliceLonPrimitive) {
+    const initLonCanvas = paintVerticalDoubleBuf(sliceLonBuffers, m0, m1, frac, maxVal, lonFrac, true, isDiv, layerType, vz);
+    const geomLon = new Cesium.WallGeometry({
+      positions: Cesium.Cartesian3.fromDegreesArrayHeights([sliceLon, -14, zTop, sliceLon, -3, zTop]),
+      minimumHeights: [zBot, zBot],
+      vertexFormat: Cesium.MaterialAppearance.MaterialSupport.TEXTURED.vertexFormat
+    });
+    sliceLonPrimitive = viewer.scene.primitives.add(createTexturedPrimitive(geomLon, initLonCanvas));
+  }
+  sliceLonPrimitive.show = showVol && showSlices;
+  if (sliceLonPrimitive.show) {
+    const nextLonCanvas = paintVerticalDoubleBuf(sliceLonBuffers, m0, m1, frac, maxVal, lonFrac, true, isDiv, layerType, vz);
+    sliceLonPrimitive.appearance.material.uniforms.image = nextLonCanvas;
+  }
+
+  if ((scaleChanged || sliceLat !== lastSliceLat) && sliceLatPrimitive) {
+    viewer.scene.primitives.remove(sliceLatPrimitive);
+    sliceLatPrimitive = null;
+  }
+  if (!sliceLatPrimitive) {
+    const initLatCanvas = paintVerticalDoubleBuf(sliceLatBuffers, m0, m1, frac, maxVal, latFrac, false, isDiv, layerType, vz);
+    const geomLat = new Cesium.WallGeometry({
+      positions: Cesium.Cartesian3.fromDegreesArrayHeights([105, sliceLat, zTop, 128, sliceLat, zTop]),
+      minimumHeights: [zBot, zBot],
+      vertexFormat: Cesium.MaterialAppearance.MaterialSupport.TEXTURED.vertexFormat
+    });
+    sliceLatPrimitive = viewer.scene.primitives.add(createTexturedPrimitive(geomLat, initLatCanvas));
+  }
+  sliceLatPrimitive.show = showVol && showSlices;
+  if (sliceLatPrimitive.show) {
+    const nextLatCanvas = paintVerticalDoubleBuf(sliceLatBuffers, m0, m1, frac, maxVal, latFrac, false, isDiv, layerType, vz);
+    sliceLatPrimitive.appearance.material.uniforms.image = nextLatCanvas;
+  }
+
+  lastGeomScale = scale;
+  lastSliceLon = sliceLon;
+  lastSliceLat = sliceLat;
+  refreshInspector();
+}
+
+// ============================================================================
+// 7. ANIMATION LOOP (preUpdate)
+// ============================================================================
+let lastTickMs = performance.now();
+let lastVolPaintMs = 0;
+
+viewer.scene.preUpdate.addEventListener(() => {
+  const now = performance.now();
+  const dt = (now - lastTickMs) / 1000;
+  lastTickMs = now;
+
+  stepWindRibbons(dt);
+
+  if (isPlaying) {
+    const maxDay = Math.max(0, (DATA.dates?.length || 1) - 1);
+    simTime += dt * 2.2 * speedMult;
+    if (simTime > maxDay) simTime = 0;
+
+    const slider = document.getElementById("time-slider");
+    slider.value = simTime.toFixed(2);
+
+    if (now - lastVolPaintMs > 32) {
+      updateVolumeAndSlices(false);
+      lastVolPaintMs = now;
+    }
+  }
+});
+
+// ============================================================================
+// 8. UI CONTROLS & JSON BUNDLE LOADER
+// ============================================================================
+function setVizMode(mode) {
+  vizMode = mode;
+  document.getElementById("mode-volume").classList.toggle("active", mode === "volume");
+  document.getElementById("mode-wind").classList.toggle("active", mode === "wind");
+  document.getElementById("mode-hybrid").classList.toggle("active", mode === "hybrid");
+  updateVolumeAndSlices(true);
+}
+document.getElementById("mode-volume").addEventListener("click", () => setVizMode("volume"));
+document.getElementById("mode-wind").addEventListener("click", () => setVizMode("wind"));
+document.getElementById("mode-hybrid").addEventListener("click", () => setVizMode("hybrid"));
+
+document.querySelectorAll(".p-chip").forEach(chip => {
+  chip.addEventListener("click", () => {
+    const p = parseInt(chip.dataset.p, 10);
+    if (activePressures.has(p)) {
+      if (activePressures.size > 1) {
+        activePressures.delete(p);
+        chip.classList.remove("active");
+      }
+    } else {
+      activePressures.add(p);
+      chip.classList.add("active");
+    }
+    updateVolumeAndSlices(true);
+  });
+});
+
+document.getElementById("time-slider").addEventListener("input", (e) => {
+  simTime = parseFloat(e.target.value);
+  updateVolumeAndSlices(false);
+});
+
+["layer-select", "slice-lon", "slice-lat", "alt-scale", "show-slices", "show-box", "mask-sig"].forEach(id => {
+  document.getElementById(id).addEventListener("input", () => {
+    updateVolumeAndSlices(true);
+    if (id === "alt-scale") rebuildTrajectories();
+  });
+  document.getElementById(id).addEventListener("change", () => {
+    updateVolumeAndSlices(true);
+    if (id === "alt-scale") rebuildTrajectories();
+  });
+});
+
+const playBtn = document.getElementById("play-btn");
+playBtn.addEventListener("click", () => {
+  isPlaying = !isPlaying;
+  playBtn.textContent = isPlaying ? "⏸ Pause" : "▶ Play";
+});
+
+const speedBtn = document.getElementById("speed-btn");
+const SPEEDS = [0.5, 1.0, 2.0];
+let speedIdx = 1;
+speedBtn.addEventListener("click", () => {
+  speedIdx = (speedIdx + 1) % SPEEDS.length;
+  speedMult = SPEEDS[speedIdx];
+  speedBtn.textContent = `${speedMult.toFixed(1)}x`;
+});
+
+function haversineKm(lon1, lat1, lon2, lat2) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return Math.round(2 * R * Math.asin(Math.sqrt(a)));
+}
+
+document.getElementById("show-traj").addEventListener("change", rebuildTrajectories);
+
+const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+handler.setInputAction((click) => {
+  const cartesian = viewer.camera.pickEllipsoid(click.position, viewer.scene.globe.ellipsoid);
+  if (!cartesian) return;
+  const carto = Cesium.Cartographic.fromCartesian(cartesian);
+  const lon = Cesium.Math.toDegrees(carto.longitude);
+  const lat = Cesium.Math.toDegrees(carto.latitude);
+  if (lon < 105 || lon > 128 || lat < -14 || lat > -3) return;
+
+  inspectedCoord = { lon, lat };
+  refreshInspector();
+}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+function flyRegional() {
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(116.5, -18.5, 1350000),
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-42), roll: 0 },
+    duration: 1.4
+  });
+}
+document.getElementById("cam-region").addEventListener("click", flyRegional);
+document.getElementById("cam-volcano").addEventListener("click", () => {
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(123.5, -11.5, 420000),
+    orientation: { heading: Cesium.Math.toRadians(-18), pitch: Cesium.Math.toRadians(-32), roll: 0 },
+    duration: 1.4
+  });
+});
+document.getElementById("cam-side").addEventListener("click", () => {
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(116.5, -22.0, 950000),
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-24), roll: 0 },
+    duration: 1.4
+  });
+});
+
+// Automatically orient latitude arrays south-to-north if exported north-to-south
+const flipRows = g => (Array.isArray(g) ? g.slice().reverse() : g);
+const flipDaily = a => (Array.isArray(a) ? a.map(flipRows) : a);
+
+document.getElementById("file-input").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      const parsed = JSON.parse(evt.target.result);
+      const loaded = [];
+      const notes = [];
+
+      let lats = parsed.lats, lons = parsed.lons;
+      const northFirst = Array.isArray(lats) && lats.length > 1 && lats[0] > lats[lats.length - 1];
+      if (northFirst) { lats = lats.slice().reverse(); notes.push("latitude reordered (S→N)"); }
+      if (lons && lats) { DATA.lons = lons; DATA.lats = lats; }
+      if (parsed.dates?.length) DATA.dates = parsed.dates;
+      DATA.meta = parsed.meta || {};
+
+      const fixD = a => (northFirst ? flipDaily(a) : a);
+      const fixG = a => (northFirst ? flipRows(a) : a);
+
+      if (parsed.daily?.so2) { DATA.daily.so2 = fixD(parsed.daily.so2); loaded.push("SO₂"); }
+      if (parsed.daily?.so4) { DATA.daily.so4 = fixD(parsed.daily.so4); loaded.push("SO₄"); }
+
+      DATA.stage2.sig = {};
+      ["so4", "cot", "rain", "t2m"].forEach(k => {
+        if (parsed.stage2?.lag?.[k]) { DATA.stage2.lag[k] = fixG(parsed.stage2.lag[k]); loaded.push(`Lag ${k.toUpperCase()}`); }
+        if (parsed.stage2?.r?.[k]) DATA.stage2.r[k] = fixG(parsed.stage2.r[k]);
+        if (parsed.stage2?.sig?.[k]) DATA.stage2.sig[k] = fixG(parsed.stage2.sig[k]);
+      });
+
+      // ERA5 wind field
+      DATA.wind = null;
+      const W = parsed.wind;
+      if (W?.u && W?.v && W?.levels && W?.lons && W?.lats) {
+        const wFlip = W.lats[0] > W.lats[W.lats.length - 1];
+        DATA.wind = {
+          levels: W.levels, t0: W.t0 || 0, lons: W.lons,
+          lats: wFlip ? W.lats.slice().reverse() : W.lats,
+          u: wFlip ? W.u.map(t => t.map(flipRows)) : W.u,
+          v: wFlip ? W.v.map(t => t.map(flipRows)) : W.v
+        };
+        notes.push(`ERA5 wind (${W.levels.join("/")} hPa)`);
+      } else {
+        notes.push("synthetic wind fallback (no wind block in JSON)");
+      }
+
+      // 3D vertical SO2 field + plume height
+      DATA.vertical = null; DATA.plume = null;
+      const VV = parsed.vertical;
+      if (VV?.so2 && VV?.levels) {
+        DATA.vertical = { ...VV, so2: northFirst ? VV.so2.map(t => t.map(flipRows)) : VV.so2 };
+        notes.push(`3D SO₂ vertical levels (τ=${VV.tau_so2_hari ?? "?"} d)`);
+      }
+      if (parsed.plume?.height_km) DATA.plume = parsed.plume;
+
+      // Deterministic trajectories
+      DATA.traj = Array.isArray(parsed.trajectories_300hpa) ? parsed.trajectories_300hpa : [];
+      if (DATA.traj.length) notes.push(`${DATA.traj.length} trajectories`);
+
+      const s = document.getElementById("time-slider");
+      s.max = Math.max(0, DATA.dates.length - 1);
+      simTime = Math.min(34, parseFloat(s.max));
+      s.value = simTime;
+
+      const badge = document.getElementById("data-badge");
+      badge.className = "badge badge-live";
+      badge.textContent = "PROCESSED DATASET LOADED";
+      const drv = DATA.meta.stage2_driver ? ` | SO₂ driver: ${DATA.meta.stage2_driver}` : "";
+      document.getElementById("load-summary").textContent =
+        `Loaded: ${loaded.join(", ")}${drv}. ${notes.join("; ")}.`;
+
+      refreshAutoScales();
+      rebuildTrajectories();
+      updateVolumeAndSlices(true);
+    } catch (err) {
+      alert("Failed to parse JSON bundle: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+});
+
+initWindRibbons();
+updateVolumeAndSlices(true);
+flyRegional();
+</script>
+</body>
+</html>
