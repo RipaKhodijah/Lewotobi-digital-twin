@@ -1468,5 +1468,18 @@ flyRegional();
     });
   })();
 </script>
+<script>
+  window.addEventListener("load", () => {
+    setTimeout(() => {
+      // Cari semua checkbox di halaman, temukan yang berada di sebelah teks "ERA5 300 hPa Trajectories"
+      document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        const labelText = cb.parentElement ? cb.parentElement.textContent : "";
+        if (labelText.includes("ERA5 300 hPa Trajectories") && cb.checked) {
+          cb.click(); // Matikan centang awal sekaligus menyembunyikan garisnya dengan bersih
+        }
+      });
+    }, 300);
+  });
+</script>
 </body>
 </html>
