@@ -1352,75 +1352,121 @@ updateVolumeAndSlices(true);
 flyRegional();
 </script>
 <style>
-  #toggle-ui-btn {
-    position: fixed;
-    top: 12px;
-    right: 12px;
-    z-index: 9999;
-    background: rgba(15, 23, 42, 0.88);
+  /* Rapikan tombol lipat mini di pojok kanan atas masing-masing kartu */
+  .panel-fold-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    background: rgba(15, 23, 42, 0.75);
     color: #38bdf8;
-    border: 1px solid rgba(56, 189, 248, 0.5);
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
     cursor: pointer;
-    backdrop-filter: blur(6px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+  }
+  .panel-fold-btn:hover {
+    background: rgba(56, 189, 248, 0.2);
   }
 
-  body.ui-hidden .panel,
-  body.ui-hidden .left-panel,
-  body.ui-hidden .right-panel,
-  body.ui-hidden .bottom-panel,
-  body.ui-hidden [id*="panel"],
-  body.ui-hidden [class*="panel"],
-  body.ui-hidden [class*="hud"],
-  body.ui-hidden [class*="control"] {
+  /* Saat satu kartu dilipat, sisakan judul tipis saja agar peta 3D lega */
+  .panel.is-folded {
+    max-height: 36px !important;
+    overflow: hidden !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+    opacity: 0.88;
+  }
+  .panel.is-folded > *:not(.panel-fold-btn):not(.sec-title):not(.panel-mini-label) {
     display: none !important;
   }
+  .panel-mini-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    padding-right: 28px;
+  }
 
+  /* Responsif rapi saat dibuka di HP */
   @media (max-width: 768px) {
-    body:not(.ui-hidden) {
-      overflow-y: auto !important;
+    #top-bar {
+      left: 8px !important;
+      right: 8px !important;
+      padding: 8px 10px !important;
+      flex-direction: column !important;
+      align-items: flex-start !important;
+      gap: 6px !important;
     }
-    body:not(.ui-hidden)::before {
-      content: "";
-      display: block;
-      height: 45vh;
-      pointer-events: none;
-    }
-    body:not(.ui-hidden) .panel,
-    body:not(.ui-hidden) .left-panel,
-    body:not(.ui-hidden) .right-panel,
-    body:not(.ui-hidden) .bottom-panel,
-    body:not(.ui-hidden) [id*="panel"],
-    body:not(.ui-hidden) [class*="panel"],
-    body:not(.ui-hidden) [class*="hud"],
-    body:not(.ui-hidden) [class*="control"] {
-      position: relative !important;
-      inset: auto !important;
-      transform: none !important;
-      width: 92vw !important;
-      max-width: 92vw !important;
-      margin: 8px auto !important;
-      z-index: 20 !important;
+    #top-bar h1 { font-size: 13px !important; }
+    #top-bar .sub { display: none !important; }
+    #top-bar .mode-pills { width: 100%; justify-content: space-between; }
+    #top-bar .pill-btn { font-size: 10px !important; padding: 4px 6px !important; }
+
+    #left-panel, #right-panel, #bottom-panel, .hud-panel {
+      left: 8px !important;
+      right: 8px !important;
+      width: auto !important;
+      max-width: none !important;
     }
   }
 </style>
 
-<button id="toggle-ui-btn" onclick="toggleTwinUI()">✕ Hide UI</button>
-
 <script>
-  function toggleTwinUI() {
-    const hidden = document.body.classList.toggle("ui-hidden");
-    document.getElementById("toggle-ui-btn").textContent = hidden ? "☰ Controls" : "✕ Hide UI";
-  }
+  (function setupPerPanelFold() {
+    const configs = [
+      { sel: "#left-panel", label: "1. Layer & Timeline" },
+      { sel: "#right-panel", label: "Dataset & Grid Inspector" },
+      { sel: "#bottom-panel, .hud-panel", label: "Pressure Levels & Cross-Sections" }
+    ];
 
-  if (window.innerWidth <= 768) {
-    document.body.classList.add("ui-hidden");
-    document.getElementById("toggle-ui-btn").textContent = "☰ Controls";
-  }
+    const isMobile = window.innerWidth <= 768;
+
+    configs.forEach(cfg => {
+      const el = document.querySelector(cfg.sel);
+      if (!el || el.querySelector(".panel-fold-btn")) return;
+
+      if (getComputedStyle(el).position === "static") {
+        el.style.position = "relative";
+      }
+
+      // Label ringkas saat kartu dilipat (jika kartu belum punya .sec-title di baris paling atas)
+      if (!el.firstElementChild || !el.firstElementChild.classList.contains("sec-title")) {
+        const lbl = document.createElement("div");
+        lbl.className = "panel-mini-label";
+        lbl.textContent = cfg.label;
+        lbl.style.display = "none";
+        el.prepend(lbl);
+      }
+
+      const btn = document.createElement("button");
+      btn.className = "panel-fold-btn";
+      btn.type = "button";
+      btn.title = "Minimize / Expand panel";
+      btn.textContent = "−";
+
+      const setFold = (fold) => {
+        el.classList.toggle("is-folded", fold);
+        btn.textContent = fold ? "+" : "−";
+        const mini = el.querySelector(".panel-mini-label");
+        if (mini) mini.style.display = fold ? "block" : "none";
+      };
+
+      btn.addEventListener("click", () => setFold(!el.classList.contains("is-folded")));
+      el.appendChild(btn);
+
+      // Di HP, lipat otomatis saat awal dibuka agar globe terlihat; di laptop terbuka normal
+      if (isMobile) setFold(true);
+    });
+  })();
 </script>
 </body>
 </html>
